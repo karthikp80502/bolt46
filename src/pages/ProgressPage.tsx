@@ -15,7 +15,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getStreakData } from '../utils/streakManager';
 import { getPatientProgress, updateTherapyCompletion } from '../utils/therapyProgressManager';
-import { getUserAchievements, updateAllAchievements, UserAchievement } from '../utils/achievementsManager';
 
 function ProgressPage() {
   const { user } = useAuth();
@@ -31,7 +30,6 @@ function ProgressPage() {
   const [averageSleepQuality, setAverageSleepQuality] = useState(7.5);
   const [totalTherapySessions, setTotalTherapySessions] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
-  const [achievements, setAchievements] = useState<UserAchievement[]>([]);
 
   const timeframes = [
     { value: '7d', label: '7 Days' },
@@ -150,23 +148,6 @@ function ProgressPage() {
     // Load weekly stats from real activity data
     loadWeeklyStats();
     setTotalTherapySessions(patientProgressData.totalCompletedSessions);
-    // Update achievements based on real data
-    loadAchievements();
-  };
-
-  const loadAchievements = async () => {
-    if (!user?.id) return;
-
-    try {
-      // Update all achievements based on current progress
-      await updateAllAchievements(user.id);
-
-      // Fetch updated achievements
-      const userAchievements = await getUserAchievements(user.id);
-      setAchievements(userAchievements);
-    } catch (error) {
-      console.error('Error loading achievements:', error);
-    }
   };
 
   const filterDataByTimeframe = (data: any[], timeframe: string) => {
@@ -844,100 +825,6 @@ function ProgressPage() {
           </motion.div>
         </div>
 
-        {/* Achievements */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1 }}
-          className={`p-4 rounded-xl shadow-lg ${
-            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
-          }`}
-        >
-          <h3 className={`text-lg font-semibold mb-4 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-800'
-          }`}>
-            Achievements & Milestones
-          </h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            {achievements.length === 0 ? (
-              <div className="col-span-2 text-center py-8">
-                <Award className={`w-12 h-12 mx-auto mb-4 ${
-                  theme === 'dark' ? 'text-gray-600' : 'text-gray-400'
-                }`} />
-                <p className={`text-lg ${
-                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  Loading achievements...
-                </p>
-              </div>
-            ) : achievements.map((userAchievement, index) => {
-              const achievement = userAchievement.achievement;
-              if (!achievement) return null;
-
-              const progressPercentage = achievement.requirement > 0
-                ? Math.min(100, Math.round((userAchievement.progress / achievement.requirement) * 100))
-                : 0;
-
-              return (
-                <div
-                  key={userAchievement.id}
-                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                    userAchievement.earned
-                      ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
-                      : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-700/50'
-                  }`}
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      userAchievement.earned
-                        ? 'bg-green-100 dark:bg-green-800'
-                        : 'bg-gray-100 dark:bg-gray-600'
-                    }`}>
-                      <Award className={`w-5 h-5 ${
-                        userAchievement.earned
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className={`font-semibold ${
-                        theme === 'dark' ? 'text-white' : 'text-gray-800'
-                      }`}>
-                        {achievement.title}
-                      </h4>
-                      <p className={`text-sm ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        {achievement.description}
-                      </p>
-                      {userAchievement.earned ? (
-                        <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                          Earned on {userAchievement.earned_at ? new Date(userAchievement.earned_at).toLocaleDateString() : 'N/A'}
-                        </p>
-                      ) : (
-                        <div className="mt-2">
-                          <div className={`w-full h-2 rounded-full ${
-                            theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'
-                          }`}>
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500"
-                              style={{ width: `${progressPercentage}%` }}
-                            />
-                          </div>
-                          <p className={`text-xs mt-1 ${
-                            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                          }`}>
-                            {userAchievement.progress}/{achievement.requirement} - {progressPercentage}% complete
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
       </div>
     </div>
   );
