@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Heart, Moon, Brain, Target, Smile, Meh, Frown, Award, 
+import toast from 'react-hot-toast';
+import {
+  Heart, Moon, Brain, Target, Smile, Meh, Frown, Award,
   Filter, Download, CheckCircle, PieChart as PieChartIcon,
   TrendingUp, Calendar, Clock, Star, Users, Activity
 } from 'lucide-react';
-import { 
-  LineChart, Line, AreaChart, Area, BarChart, Bar, 
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
-  ResponsiveContainer, PieChart, Pie, Cell 
+import {
+  LineChart, Line, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getStreakData } from '../utils/streakManager';
 import { getPatientProgress, updateTherapyCompletion } from '../utils/therapyProgressManager';
+import { getUserAchievements, updateAllAchievements, UserAchievement } from '../utils/achievementsManager';
 
 function ProgressPage() {
   const { user } = useAuth();
@@ -29,35 +31,7 @@ function ProgressPage() {
   const [averageSleepQuality, setAverageSleepQuality] = useState(7.5);
   const [totalTherapySessions, setTotalTherapySessions] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
-
-  const achievements = [
-    { 
-      title: '7-Day Streak', 
-      description: 'Completed daily check-ins for 7 days', 
-      earned: false, 
-      date: '2024-01-07',
-      progress: 0
-    },
-    { 
-      title: 'Mindfulness Master', 
-      description: 'Completed 10 meditation sessions', 
-      earned: false, 
-      date: '2024-01-05',
-      progress: 0
-    },
-    { 
-      title: 'Stress Warrior', 
-      description: 'Successfully managed stress for 5 days', 
-      earned: false, 
-      progress: 0
-    },
-    { 
-      title: 'Therapy Graduate', 
-      description: 'Complete 3 therapy modules', 
-      earned: false, 
-      progress: 0
-    }
-  ];
+  const [achievements, setAchievements] = useState<UserAchievement[]>([]);
 
   const timeframes = [
     { value: '7d', label: '7 Days' },
@@ -177,7 +151,22 @@ function ProgressPage() {
     loadWeeklyStats();
     setTotalTherapySessions(patientProgressData.totalCompletedSessions);
     // Update achievements based on real data
-    updateAchievements();
+    loadAchievements();
+  };
+
+  const loadAchievements = async () => {
+    if (!user?.id) return;
+
+    try {
+      // Update all achievements based on current progress
+      await updateAllAchievements(user.id);
+
+      // Fetch updated achievements
+      const userAchievements = await getUserAchievements(user.id);
+      setAchievements(userAchievements);
+    } catch (error) {
+      console.error('Error loading achievements:', error);
+    }
   };
 
   const filterDataByTimeframe = (data: any[], timeframe: string) => {
@@ -261,56 +250,6 @@ function ProgressPage() {
     setWeeklyStats(weeklyData);
   };
 
-  const updateAchievements = () => {
-    const streakData = getStreakData();
-    const moodEntries = JSON.parse(localStorage.getItem('mindcare_mood_entries') || '[]');
-    const userMoodEntries = moodEntries.filter((e: any) => e.userId === user?.id || !e.userId);
-    
-    // Load all therapy activities
-    const cbtRecords = JSON.parse(localStorage.getItem('mindcare_cbt_records') || '[]');
-    const gratitudeEntries = JSON.parse(localStorage.getItem('mindcare_gratitude_entries') || '[]');
-    const exposureSessions = JSON.parse(localStorage.getItem('mindcare_exposure_sessions') || '[]');
-    const videoProgress = JSON.parse(localStorage.getItem('mindcare_video_progress') || '[]');
-
-    const userCBT = cbtRecords.filter((r: any) => r.userId === user?.id || !r.userId);
-    const userGratitude = gratitudeEntries.filter((e: any) => e.userId === user?.id || !e.userId);
-    const userExposure = exposureSessions.filter((s: any) => s.userId === user?.id || !s.userId);
-    const userVideo = videoProgress.filter((p: any) => p.userId === user?.id || !p.userId);
-
-    // Calculate mindfulness sessions (estimate from various activities)
-    const mindfulnessSessions = Math.floor(userMoodEntries.length * 0.3) + 
-                               Math.floor(userGratitude.length * 0.5) + 
-                               userExposure.length;
-
-    // Calculate stress management achievements
-    const stressLogs = JSON.parse(localStorage.getItem('mindcare_stress_logs') || '[]');
-    const userStressLogs = stressLogs.filter((l: any) => l.userId === user?.id || !l.userId);
-    const goodStressDays = userStressLogs.filter((log: any) => 
-      log.effectiveness >= 7 // High effectiveness in stress management
-    ).length;
-
-    // Calculate completed therapy modules
-    const completedModules = [
-      userCBT.length >= 3 ? 1 : 0,
-      userGratitude.length >= 7 ? 1 : 0,
-      userStressLogs.length >= 3 ? 1 : 0,
-      mindfulnessSessions >= 5 ? 1 : 0,
-      userVideo.length >= 2 ? 1 : 0
-    ].reduce((sum, val) => sum + val, 0);
-
-    // Update achievements with real progress
-    achievements[0].earned = streakData.currentStreak >= 7;
-    achievements[0].progress = Math.min(100, (streakData.currentStreak / 7) * 100);
-
-    achievements[1].earned = mindfulnessSessions >= 10;
-    achievements[1].progress = Math.min(100, (mindfulnessSessions / 10) * 100);
-
-    achievements[2].earned = goodStressDays >= 5;
-    achievements[2].progress = Math.min(100, (goodStressDays / 5) * 100);
-
-    achievements[3].earned = completedModules >= 3;
-    achievements[3].progress = Math.min(100, (completedModules / 3) * 100);
-  };
 
   const calculateTherapyProgress = () => {
     if (!userProgress?.currentPlan) {
@@ -905,66 +844,6 @@ function ProgressPage() {
           </motion.div>
         </div>
 
-        {/* Therapy Progress */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.0 }}
-          className={`mb-4 p-4 rounded-xl shadow-lg ${
-            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
-          }`}
-        >
-          <h3 className={`text-lg font-semibold mb-4 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-800'
-          }`}>
-            Therapy Module Progress
-          </h3>
-          <div className="space-y-3">
-            {therapyProgress.map((module, index) => (
-              <div
-                key={index}
-                className={`p-3 rounded-lg ${
-                  theme === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className={`font-medium ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-800'
-                  }`}>
-                    {module.module}
-                  </h4>
-                  <span className={`text-sm ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {module.completed}/{module.total} sessions
-                  </span>
-                </div>
-                <div className={`w-full h-2 rounded-full ${
-                  theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'
-                }`}>
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500"
-                    style={{ width: `${module.progress}%` }}
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className={`text-sm ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {module.progress}% complete
-                  </span>
-                  {module.progress === 100 && (
-                    <div className="flex items-center space-x-1 text-green-500">
-                      <Award className="w-4 h-4" />
-                      <span className="text-sm font-medium">Completed</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
         {/* Achievements */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -980,63 +859,83 @@ function ProgressPage() {
             Achievements & Milestones
           </h3>
           <div className="grid md:grid-cols-2 gap-4">
-            {achievements.map((achievement, index) => (
-              <div
-                key={index}
-                className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                  achievement.earned
-                    ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
-                    : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-700/50'
-                }`}
-              >
-                <div className="flex items-start space-x-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    achievement.earned
-                      ? 'bg-green-100 dark:bg-green-800'
-                      : 'bg-gray-100 dark:bg-gray-600'
-                  }`}>
-                    <Award className={`w-5 h-5 ${
-                      achievement.earned
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-gray-500 dark:text-gray-400'
-                    }`} />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className={`font-semibold ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-800'
+            {achievements.length === 0 ? (
+              <div className="col-span-2 text-center py-8">
+                <Award className={`w-12 h-12 mx-auto mb-4 ${
+                  theme === 'dark' ? 'text-gray-600' : 'text-gray-400'
+                }`} />
+                <p className={`text-lg ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  Loading achievements...
+                </p>
+              </div>
+            ) : achievements.map((userAchievement, index) => {
+              const achievement = userAchievement.achievement;
+              if (!achievement) return null;
+
+              const progressPercentage = achievement.requirement > 0
+                ? Math.min(100, Math.round((userAchievement.progress / achievement.requirement) * 100))
+                : 0;
+
+              return (
+                <div
+                  key={userAchievement.id}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                    userAchievement.earned
+                      ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                      : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-700/50'
+                  }`}
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      userAchievement.earned
+                        ? 'bg-green-100 dark:bg-green-800'
+                        : 'bg-gray-100 dark:bg-gray-600'
                     }`}>
-                      {achievement.title}
-                    </h4>
-                    <p className={`text-sm ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      {achievement.description}
-                    </p>
-                    {achievement.earned ? (
-                      <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                        Earned on {achievement.date}
+                      <Award className={`w-5 h-5 ${
+                        userAchievement.earned
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`} />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className={`font-semibold ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-800'
+                      }`}>
+                        {achievement.title}
+                      </h4>
+                      <p className={`text-sm ${
+                        theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {achievement.description}
                       </p>
-                    ) : (
-                      <div className="mt-2">
-                        <div className={`w-full h-2 rounded-full ${
-                          theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'
-                        }`}>
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500"
-                            style={{ width: `${achievement.progress}%` }}
-                          />
-                        </div>
-                        <p className={`text-xs mt-1 ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                          {achievement.progress}% complete
+                      {userAchievement.earned ? (
+                        <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                          Earned on {userAchievement.earned_at ? new Date(userAchievement.earned_at).toLocaleDateString() : 'N/A'}
                         </p>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="mt-2">
+                          <div className={`w-full h-2 rounded-full ${
+                            theme === 'dark' ? 'bg-gray-600' : 'bg-gray-200'
+                          }`}>
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500"
+                              style={{ width: `${progressPercentage}%` }}
+                            />
+                          </div>
+                          <p className={`text-xs mt-1 ${
+                            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
+                            {userAchievement.progress}/{achievement.requirement} - {progressPercentage}% complete
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.div>
       </div>
